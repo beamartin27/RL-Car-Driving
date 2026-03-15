@@ -34,7 +34,7 @@ def simulate(learning=True,episode_start=0): # LEARN
     max_reward = -10_000
     env.set_view(True)
 
-    for episode in range(episode_start, NUM_EPISODES+episode_start):
+    for episode in range(episode_start, NUM_EPISODES+episode_start): # training loop
 
         if episode > 0:
             total_rewards.append(total_reward)
@@ -68,8 +68,8 @@ def simulate(learning=True,episode_start=0): # LEARN
             explore_rate = 0.01
 
         for t in range(MAX_T):
-            action = select_action(state_0, explore_rate if learning else 0)
-            obv, reward, done, _, info = env.step(action)
+            action = select_action(state_0, explore_rate if learning else 0) # epsilon-greedy
+            obv, reward, done, _, info = env.step(action)                    # take action, get result
             state = state_to_bucket(obv)
             if sum(obv) != sum(state):
                 print('WARNING',obv,state)
@@ -77,7 +77,7 @@ def simulate(learning=True,episode_start=0): # LEARN
             total_reward += reward
             
             if learning:
-                # Update the Q based on the result
+                # Update the Q based on the result - Q-LEARNING UPDATE, this is the line you'll replace with NN training
                 best_q = np.amax(q_table[state])
                 q_table[state_0 + (action,)] += learning_rate * (reward + discount_factor * (best_q) - q_table[state_0 + (action,)])
 
@@ -110,8 +110,8 @@ def simulate(learning=True,episode_start=0): # LEARN
                 #      % (episode, t, total_reward))
                 break
         # Update parameters
-        explore_rate  = get_explore_rate(episode)
-        learning_rate = get_learning_rate(episode)
+        explore_rate  = get_explore_rate(episode)  # decay exploration
+        learning_rate = get_learning_rate(episode) # decay learning rate
 
 def load_and_play(episode, learning=False):
     global q_table
@@ -158,9 +158,9 @@ def load_and_play(episode, learning=False):
 
 def select_action(state, explore_rate):
     if random.random() < explore_rate:
-        action = env.action_space.sample()
+        action = env.action_space.sample()      # random action (explore)
     else:
-        action = int(np.argmax(q_table[state]))
+        action = int(np.argmax(q_table[state])) # best known action (exploit)
     return action
 
 def get_explore_rate(t):

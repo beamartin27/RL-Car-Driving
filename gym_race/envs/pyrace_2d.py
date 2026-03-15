@@ -13,21 +13,21 @@ Area for text boxes:
 class Car:
     def __init__(self, car_file, map, pos): # map_file
         # self.map = pygame.image.load(map_file)
-        self.map = map
+        self.map = map                                                    # the track image (used for collision detection)
         self.surface = pygame.image.load(car_file)
         self.surface = pygame.transform.scale(self.surface, (100, 100))
         self.rotate_surface = self.surface
-        self.pos = pos
-        self.angle = 0
+        self.pos = pos                                                     # [x, y] position on screen
+        self.angle = 0                                                     # facing direction in degrees
         self.speed = 0
         self.center = [self.pos[0] + 50, self.pos[1] + 50]
-        self.radars = []
+        self.radars = []                                                   # sensor readings (cleared and recalculated each step)
         self.radars_for_draw = []
-        self.is_alive = True
-        self.goal = False
-        self.distance = 0
+        self.is_alive = True                                               # False = crashed
+        self.goal = False                                                  # True = completed a lap
+        self.distance = 0                                                  # total distance traveled
         self.time_spent = 0
-        self.current_check = 0
+        self.current_check = 0                                             # which checkpoint we're heading toward
         self.prev_distance = 0
         self.cur_distance = 0
         self.check_flag = False
@@ -52,16 +52,16 @@ class Car:
         except:
             return (255, 255, 255, 255)
 
-    def check_collision(self, map=None):
+    def check_collision(self, map=None):  # track image has white pixels for walls/grass and colored pixels for the road
         self.is_alive = True
         for p in self.four_points:
-            if self.pixel_at(int(p[0]), int(p[1])) == (255, 255, 255, 255):
+            if self.pixel_at(int(p[0]), int(p[1])) == (255, 255, 255, 255): # computes its 4 corner points and checks if any of them land on a white pixel
                 self.is_alive = False
                 break
 
-    def check_radar(self, degree, map=None):
+    def check_radar(self, degree, map=None): # casts a ray from the car's center at a specific angle and counts how far it goes before hitting a white pixel
         len = 0
-        x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * len)
+        x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * len) # 5 radars are cast at angles -90°, -45°, 0°, +45°, +90° relative to the car's heading — so the car "sees" left, front-left, front, front-right, and right.
         y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * len)
 
         while not self.pixel_at(x, y) == (255, 255, 255, 255) and len < 200:
@@ -92,17 +92,17 @@ class Car:
         dist = int(math.sqrt(math.pow(x - self.center[0], 2) + math.pow(y - self.center[1], 2)))
         self.radars_for_draw.append([(x, y), dist])
     """
-    def check_checkpoint(self):
+    def check_checkpoint(self): # 7 checkpoints defined as coordinates. The car must pass near each one in order. 
         p = check_point[self.current_check]
         self.prev_distance = self.cur_distance
         dist = get_distance(p, self.center)
-        if dist < 70:
+        if dist < 70:                            # within 70 pixels = checkpoint reached
             self.current_check += 1
             self.prev_distance = 9999
             self.check_flag = True
             if self.current_check >= len(check_point):
                 self.current_check = 0
-                self.goal = True
+                self.goal = True                 # full lap completed!
             else:
                 self.goal = False
 
@@ -110,11 +110,11 @@ class Car:
     #------------------------------------------------------------------------------
 
 
-    def update(self,map=None):
+    def update(self,map=None): # pysics
         #check speed
-        self.speed -= 0.5
-        if self.speed > 10: self.speed = 10
-        if self.speed < 1:  self.speed = 1
+        self.speed -= 0.5                   # friction: constant deceleration
+        if self.speed > 10: self.speed = 10 # speed cap
+        if self.speed < 1:  self.speed = 1  # minimum speed (car always moves!)
         
         # required for NEAT
         if map is not None:
@@ -208,7 +208,7 @@ class PyRace2D:
         self.is_render = is_render
         self.mode = mode # 0: normal, 1:dark, 2: normal (force display)
 
-    def action(self, action):
+    def action(self, action): # translates integer actions to car physics:
         if action == 0: self.car.speed += 2
         elif action == 1: self.car.angle += 5
         elif action == 2: self.car.angle -= 5
@@ -218,10 +218,10 @@ class PyRace2D:
         self.car.check_checkpoint()
 
         self.car.radars.clear()
-        for d in range(-90, 120, 45):
+        for d in range(-90, 120, 45):   # recalculate all 5 radar sensors
             self.car.check_radar(d)
 
-    def evaluate(self):
+    def evaluate(self): # reward function
         reward = 0
         """
         if self.car.check_flag:
@@ -232,11 +232,11 @@ class PyRace2D:
         if not self.car.is_alive: # crash
             reward = -10000 + self.car.distance
 
-        elif self.car.goal:
+        elif self.car.goal: # full lap
             # reward = 10000*(1+self.car.current_check)/len(check_point)
             reward = 10000
             # print('goal',self.car.current_check,len(check_point))
-        return reward
+        return reward # everything else: 0
 
     def is_done(self):
         if not self.car.is_alive or self.car.goal:
@@ -252,7 +252,7 @@ class PyRace2D:
         ret = [0, 0, 0, 0, 0]
         i = 0
         for r in radars:
-            ret[i] = int(r[1] / 20)
+            ret[i] = int(r[1] / 20) # raw distance (0-200) → integer (0-10), discretization bottleneck
             i += 1
 
         return ret
