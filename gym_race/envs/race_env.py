@@ -12,14 +12,14 @@ class RaceEnv(gym.Env):
         self.is_view = True
         self.pyrace = PyRace2D(self.is_view) # creates the actual game
         self.memory = []
-        self.render_mode = render_mode
+        self.render_mode = 0
 
     def reset(self, seed=None, options=None):
         mode = self.pyrace.mode
-        del self.pyrace # destroy old game
+        del self.pyrace
         self.is_view = True
         self.msgs=[]
-        self.pyrace = PyRace2D(self.is_view, mode = self.render_mode) # create fresh game (car back at start)
+        self.pyrace = PyRace2D(self.is_view, mode=mode)
         obs = self.pyrace.observe() # get initial radar readings
         return np.array(obs),{}
 

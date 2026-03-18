@@ -1,0 +1,6 @@
+# Large memory files (too big for GitHub)
+models/*/memory_*.npy
+models_*/memory_*.npy
+__pycache__/
+*.pyc
+

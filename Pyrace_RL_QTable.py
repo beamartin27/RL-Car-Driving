@@ -16,6 +16,8 @@ register(
     max_episode_steps=2_000,
 )
 """
+
+MODELS_DIR = 'models'
 VERSION_NAME = 'QT_v02' # the name for our model
 
 REPORT_EPISODES  = 500 # report (plot) every...
@@ -45,9 +47,9 @@ def simulate(learning=True,episode_start=0): # LEARN
                 # plt.show()
                 plt.show(block=False)
                 plt.pause(4.0)
-                file = f'models_{VERSION_NAME}/memory_{episode}'
+                file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'
                 env.save_memory(file)
-                file = f'models_{VERSION_NAME}/q_table_{episode}'
+                file = f'{MODELS_DIR}/{VERSION_NAME}/q_table_{episode}'
                 # print(q_table) # homogeneus types
                 data = q_table
                 if data.shape[0] == 11: # q_table
@@ -118,7 +120,7 @@ def load_and_play(episode, learning=False):
     """
     # RECONSTRUCT QTABLE FROM MEMORY - NOT USED...
     print("Start loading history")
-    history_list = [f'models_{VERSION_NAME}/memory_{episode}'+'.npy']
+    history_list = [f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'+'.npy']
 
     # load data from history file
     print("Start updating q_table")
@@ -142,10 +144,10 @@ def load_and_play(episode, learning=False):
     """
     # DIRECT LOADING FROM SAVED DATA...
     print("Start loading q_table")
-    file = f'models_{VERSION_NAME}/q_table_{episode}'+'.npy'
+    file = f'{MODELS_DIR}/{VERSION_NAME}/q_table_{episode}'+'.npy'
     q_table = load_data(file)
     # print(q_table)
-    file = f'models_{VERSION_NAME}/memory_{episode}'+'.npy'
+    file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'+'.npy'
     memory = load_data(file)
     i = np.count_nonzero(memory[:,4] == True) # episodes
 
@@ -202,7 +204,7 @@ if __name__ == "__main__":
 
     env = gym.make("Pyrace-v1").unwrapped # skip the TimeLimig and OrderEnforcing default wrappers
     print('env',type(env))
-    if not os.path.exists(f'models_{VERSION_NAME}'): os.makedirs(f'models_{VERSION_NAME}')
+    if not os.path.exists(f'{MODELS_DIR}/{VERSION_NAME}'): os.makedirs(f'{MODELS_DIR}/{VERSION_NAME}')
 
     NUM_BUCKETS  = tuple((env.observation_space.high + np.ones(env.observation_space.shape)).astype(int))
     NUM_ACTIONS  = env.action_space.n

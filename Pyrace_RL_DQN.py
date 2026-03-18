@@ -22,6 +22,7 @@ register(
 )
 """
 
+MODELS_DIR = 'models'
 VERSION_NAME = 'DQN_v01'
 
 REPORT_EPISODES  = 500
@@ -191,13 +192,14 @@ def simulate(agent, learning=True, episode_start=0):
                 plt.ylabel('rewards')
                 plt.show(block=False)
                 plt.pause(4.0)
+                plt.savefig(f'{MODELS_DIR}/{VERSION_NAME}/rewards_{episode}.png')
 
                 # Save memory (for analysis, same as Q-table version)
-                file = f'models_{VERSION_NAME}/memory_{episode}'
+                file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'
                 env.save_memory(file)
 
                 # Save DQN model (replaces np.save of q_table)
-                model_file = f'models_{VERSION_NAME}/model_{episode}.pt'
+                model_file = f'{MODELS_DIR}/{VERSION_NAME}/model_{episode}.pt'
                 agent.save(model_file)
 
                 plt.close()
@@ -240,6 +242,8 @@ def simulate(agent, learning=True, episode_start=0):
             if done or t >= MAX_T - 1:
                 if total_reward > max_reward:
                     max_reward = total_reward
+                if episode % 50 == 0:
+                    print(f'Episode {episode}/{NUM_EPISODES + episode_start} | Reward: {total_reward:.0f} | Max: {max_reward:.0f} | Steps: {t} | ε: {explore_rate:.4f}')
                 break
 
         explore_rate = get_explore_rate(episode)
@@ -249,7 +253,7 @@ def simulate(agent, learning=True, episode_start=0):
 # 6. LOAD AND PLAY — loads a saved model and plays/continues training
 # =============================================================================
 def load_and_play(agent, episode, learning=False):
-    model_file = f'models_{VERSION_NAME}/model_{episode}.pt'
+    model_file = f'{MODELS_DIR}/{VERSION_NAME}/model_{episode}.pt'
     agent.load(model_file)
     simulate(agent, learning, episode)
 
@@ -261,8 +265,8 @@ if __name__ == "__main__":
 
     env = gym.make("Pyrace-v1").unwrapped
     print('env', type(env))
-    if not os.path.exists(f'models_{VERSION_NAME}'):
-        os.makedirs(f'models_{VERSION_NAME}')
+    if not os.path.exists(f'{MODELS_DIR}/{VERSION_NAME}'):
+        os.makedirs(f'{MODELS_DIR}/{VERSION_NAME}')
 
     STATE_SIZE  = env.observation_space.shape[0]   # 5 (radars)
     ACTION_SIZE = env.action_space.n               # 3 (accelerate, left, right)
@@ -275,7 +279,7 @@ if __name__ == "__main__":
     DECAY_FACTOR = np.prod(NUM_BUCKETS, dtype=float) / 10.0
     print(f'Decay factor: {DECAY_FACTOR}')
 
-    NUM_EPISODES = 10_000   # DQN learns faster than Q-table, fewer episodes needed
+    NUM_EPISODES = 3_000   # DQN learns faster than Q-table, fewer episodes needed
     MAX_T = 2000
 
     # Create the DQN agent
