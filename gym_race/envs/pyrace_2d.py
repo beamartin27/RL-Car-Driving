@@ -110,11 +110,11 @@ class Car:
     #------------------------------------------------------------------------------
 
 
-    def update(self,map=None): # pysics
+    def update(self,map=None, min_speed=1): # pysics
         #check speed
         self.speed -= 0.5                   # friction: constant deceleration
         if self.speed > 10: self.speed = 10 # speed cap
-        if self.speed < 1:  self.speed = 1  # minimum speed (car always moves!)
+        if self.speed < min_speed:  self.speed = min_speed  # minimum speed depends on the environment version
         
         # required for NEAT
         if map is not None:
@@ -193,7 +193,7 @@ class Car:
 
 
 class PyRace2D:
-    def __init__(self, is_render = True, car = True, mode = 0):
+    def __init__(self, is_render = True, car = True, mode = 0, version="v1"):
         # print('PyRace2D - INIT ENVIRONMENT')
         pygame.init()
         self.screen = pygame.display.set_mode((screen_width, screen_height))
@@ -201,6 +201,8 @@ class PyRace2D:
         self.font = pygame.font.SysFont("Arial", 30)
         self.map = pygame.image.load('race_track_ie.png')
         self.cars = []
+        self.version = version
+        self.min_speed = 0 if self.version == "v3" else 1
         if car:
             self.car = Car('car.png', self.map, [500, 650])
             self.cars.append(self.car)
@@ -212,8 +214,9 @@ class PyRace2D:
         if action == 0: self.car.speed += 2
         elif action == 1: self.car.angle += 5
         elif action == 2: self.car.angle -= 5
+        elif action == 3 and self.version == "v3": self.car.speed -= 2
 
-        self.car.update()
+        self.car.update(min_speed=self.min_speed)
         self.car.check_collision()
         self.car.check_checkpoint()
 
@@ -222,21 +225,40 @@ class PyRace2D:
             self.car.check_radar(d)
 
     def evaluate(self): # reward function
-        reward = 0
-        """
+        if self.version != "v3":
+            reward = 0
+            """
+            if self.car.check_flag:
+                self.car.check_flag = False
+                reward = 2000 - self.car.time_spent
+                self.car.time_spent = 0
+            """
+            if not self.car.is_alive: # crash
+                reward = -10000 + self.car.distance
+
+            elif self.car.goal: # full lap
+                # reward = 10000*(1+self.car.current_check)/len(check_point)
+                reward = 10000
+                # print('goal',self.car.current_check,len(check_point))
+            return reward # everything else: 0
+
+        reward = -0.1 # small per-step penalty to discourage stalling
+        reward += 0.02 * self.car.speed # moving is better than standing still
+
         if self.car.check_flag:
+            reward += 50.0
             self.car.check_flag = False
-            reward = 2000 - self.car.time_spent
-            self.car.time_spent = 0
-        """
+        else:
+            progress = self.car.prev_distance - self.car.cur_distance
+            reward += 0.1 * progress # reward moving toward the next checkpoint
+
         if not self.car.is_alive: # crash
-            reward = -10000 + self.car.distance
+            reward = -1000.0 + 0.1 * self.car.distance
 
         elif self.car.goal: # full lap
-            # reward = 10000*(1+self.car.current_check)/len(check_point)
-            reward = 10000
-            # print('goal',self.car.current_check,len(check_point))
-        return reward # everything else: 0
+            reward = 2000.0
+
+        return reward
 
     def is_done(self):
         if not self.car.is_alive or self.car.goal:
@@ -252,7 +274,10 @@ class PyRace2D:
         ret = [0, 0, 0, 0, 0]
         i = 0
         for r in radars:
-            ret[i] = int(r[1] / 20) # raw distance (0-200) → integer (0-10), discretization bottleneck
+            if self.version == "v3":
+                ret[i] = float(r[1]) # raw radar distance for continuous observations
+            else:
+                ret[i] = int(r[1] / 20) # raw distance (0-200) → integer (0-10), discretization bottleneck
             i += 1
 
         return ret
