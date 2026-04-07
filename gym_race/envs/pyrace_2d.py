@@ -265,11 +265,20 @@ class PyRace2D:
         reward += 0.02 * self.car.speed # moving is better than standing still
 
         # Lane-centering shaping: penalize imbalance between left and right radar distances.
-        # Indices 0 and 4 are left/right rader.
+        # Indices: 0=left, 1=front-left, 2=front, 3=front-right, 4=right.
         if len(self.car.radars) >= 5:
             left_dist = float(self.car.radars[0][1])
             right_dist = float(self.car.radars[4][1])
-            reward -= 0.01 * abs(left_dist - right_dist)
+            reward -= 0.02 * abs((left_dist - right_dist)/200)
+
+            # Slight penalty for being too close to the wall for front-left and front-right lader
+            front_left = float(self.car.radars[1][1])
+            front_right = float(self.car.radars[3][1])
+            close_thresh = 40.0  # pixels (out of max 200)
+            if front_left < close_thresh:
+                reward -= 0.10 * (close_thresh - front_left) / close_thresh
+            if front_right < close_thresh:
+                reward -= 0.10 * (close_thresh - front_right) / close_thresh
 
         if self.car.check_flag:
             reward += 50.0
@@ -282,7 +291,7 @@ class PyRace2D:
             reward = -1000.0 + 0.1 * self.car.distance
 
         elif self.car.goal: # full lap
-            reward = 2000.0
+            reward = 10000.0
 
         return reward
 
