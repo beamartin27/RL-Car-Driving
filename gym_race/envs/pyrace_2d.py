@@ -286,15 +286,15 @@ class PyRace2D:
 
         # Lane-centering shaping: penalize imbalance between left and right radar distances.
         # Indices: 0=left, 1=front-left, 2=front, 3=front-right, 4=right.
-        if len(self.car.radars) >= 5:
-            left_dist = float(self.car.radars[0][1])
-            right_dist = float(self.car.radars[4][1])
-            front_left = float(self.car.radars[1][1])
-            front = float(self.car.radars[2][1])
-            front_right = float(self.car.radars[3][1])
+        # if len(self.car.radars) >= 5:
+            # left_dist = float(self.car.radars[0][1])
+            # right_dist = float(self.car.radars[4][1])
+            # front_left = float(self.car.radars[1][1])
+            # front = float(self.car.radars[2][1])
+            # front_right = float(self.car.radars[3][1])
 
-            reward -= 0.02 * abs((left_dist - right_dist)/200)
-            reward -= 0.01 * abs((front_left - front_right)/200)
+            # reward -= 0.02 * abs((left_dist - right_dist)/200)
+            # reward -= 0.01 * abs((front_left - front_right)/200)
 
             # # Shape for forward corridor vs side corridor:
             # # Encourage (left + right) to be smaller than (front-left + front-right).
@@ -306,35 +306,35 @@ class PyRace2D:
 
             # Slight penalty for being too close to the wall for front-left/front/front-right radars.
             
-            close_thresh = 40.0  # pixels (out of max 200)
-            too_close_thresh = 10.0 
-            if front_left < close_thresh:
-                reward -= 0.05 * (close_thresh - front_left) / close_thresh
-                if front_left < too_close_thresh: 
-                    reward -= 0.15 * (too_close_thresh - front_left) / too_close_thresh
-            if left_dist < too_close_thresh:
-                reward -= 0.15 * (too_close_thresh - left_dist) / too_close_thresh
-            if front < close_thresh:
-                reward -= 0.20 * (close_thresh - front) / close_thresh
-                if front < too_close_thresh: 
-                    reward -= 0.30 * (too_close_thresh - front) / too_close_thresh
-            if front_right < close_thresh:
-                reward -= 0.05 * (close_thresh - front_right) / close_thresh
-                if front_right < too_close_thresh: 
-                    reward -= 0.15 * (too_close_thresh - front_right) / too_close_thresh
-            if right_dist < too_close_thresh:
-                reward -= 0.15 * (too_close_thresh - right_dist) / too_close_thresh
+            # close_thresh = 40.0  # pixels (out of max 200)
+            # too_close_thresh = 10.0 
+            # if front_left < close_thresh:
+            #     reward -= 0.05 * (close_thresh - front_left) / close_thresh
+            #     if front_left < too_close_thresh: 
+            #         reward -= 0.15 * (too_close_thresh - front_left) / too_close_thresh
+            # if left_dist < too_close_thresh:
+            #     reward -= 0.15 * (too_close_thresh - left_dist) / too_close_thresh
+            # if front < close_thresh:
+            #     reward -= 0.20 * (close_thresh - front) / close_thresh
+            #     if front < too_close_thresh: 
+            #         reward -= 0.30 * (too_close_thresh - front) / too_close_thresh
+            # if front_right < close_thresh:
+            #     reward -= 0.05 * (close_thresh - front_right) / close_thresh
+            #     if front_right < too_close_thresh: 
+            #         reward -= 0.15 * (too_close_thresh - front_right) / too_close_thresh
+            # if right_dist < too_close_thresh:
+            #     reward -= 0.15 * (too_close_thresh - right_dist) / too_close_thresh
 
             # Speed modulation:
             # If distance between forward raders and walls are short, penalize going fast.
             # If distance between forward raders and walls are long, mildly encourage speed.
-            min_ahead = min(front_left, front, front_right)
-            danger = max(0.0, close_thresh - min_ahead) / close_thresh  # 0..1
-            speed01 = max(0.0, min(1.0, float(self.car.speed) / 10.0))
-            reward -= 0.15 * danger * speed01
+            # min_ahead = min(front_left, front, front_right)
+            # danger = max(0.0, close_thresh - min_ahead) / close_thresh  # 0..1
+            # speed01 = max(0.0, min(1.0, float(self.car.speed) / 10.0))
+            # reward -= 0.15 * danger * speed01
 
-            clear01 = max(0.0, min(1.0, min_ahead / 200.0))
-            reward += 0.02 * clear01 * speed01
+            # clear01 = max(0.0, min(1.0, min_ahead / 200.0))
+            # reward += 0.02 * clear01 * speed01
 
         if self.car.check_flag:
             reward += 15.0
@@ -349,15 +349,6 @@ class PyRace2D:
             elif progress < -20.0:
                 progress = -20.0
             reward += 0.05 * progress
-
-            # Anti-spin / anti-stall shaping:
-            # If the car is barely moving AND not getting closer to the checkpoint,
-            # make that behavior clearly worse than crashing.
-            if abs(progress) < 0.5 and float(self.car.speed) < 0.5:
-                self.stall_steps += 1
-            else:
-                self.stall_steps = 0
-            reward -= min(0.25, 0.01 * float(self.stall_steps))
 
         if not self.car.is_alive: # crash
             # Keep crash strongly negative (to avoid "suiciding" to end episodes)
