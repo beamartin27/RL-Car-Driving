@@ -10,7 +10,7 @@ Gymnasium + Pygame 2D car racing environment with multiple RL baselines:
 
 - macOS / Linux / Windows
 - Python 3.10+ (tested with Python 3.12)
-- `pip` + a virtualenv recommended
+- `pip` + a virtual env recommended
 
 This repo expects you to run commands **from the repository root** so assets like `race_track_ie.png` and `car.png` can be found.
 
