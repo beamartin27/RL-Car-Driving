@@ -48,26 +48,38 @@ python -c "import gymnasium as gym; import gym_race; env=gym.make('Pyrace-v3'); 
 
 ## Train (custom DQN)
 
-Available variants are documented at the top of `Pyrace_RL_DQN_experiments.py`.
 
-### Pyrace-v1
+### DQN_v2
 
 ```bash
-# Ablation variants
-python Pyrace_RL_DQN_experiments.py --variant v3_normalize
-
-# Improved DQN v2
+# Pyrace-v1
 python Pyrace_RL_DQN_v2.py --env-id Pyrace-v1 --version-name DQN_v02 --episodes 3000
+
+# Pyrace-v3
+python Pyrace_RL_DQN_v2.py --env-id Pyrace-v3 --version-name DQN_v02 --episodes 3000
+
 ```
 
-### Pyrace-v3
+### Ablation experiments (`Pyrace_RL_DQN_experiments.py`)
+
+Available `--variant` values:
+
+- `v1_baseline` — baseline (64→64, MSE, gamma=0.99)
+- `v3_normalize` — normalize observations
+- `v4_gamma095` — lower discount factor (gamma=0.95)
+- `v5_wider_net` — wider network (256)
+- `v6_small_buffer` — smaller replay buffer
+- `v7_huber_loss` — Huber (SmoothL1) loss
 
 ```bash
-# Ablation variants
+# Pyrace-v1
+python Pyrace_RL_DQN_experiments.py --variant v3_normalize
+
+# Pyrace-v3
 python Pyrace_RL_DQN_experiments.py --variant v3_normalize --env-id Pyrace-v3
 
-# Improved DQN v2
-python Pyrace_RL_DQN_v2.py --env-id Pyrace-v3 --version-name DQN_v02 --episodes 3000
+# Show all options
+python Pyrace_RL_DQN_experiments.py --help
 ```
 
 
@@ -78,14 +90,20 @@ SB3 training runs headless by default (no Pygame window). Use `play` to render.
 ### SB3 DQN (discrete actions)
 
 ```bash
+# Train
 python Pyrace_RL_SB3.py train --env-id Pyrace-v3 --algo dqn --run-name sb3_dqn_v3 --timesteps 200000 --device auto
+
+#Play
 python Pyrace_RL_SB3.py play  --env-id Pyrace-v3 --algo dqn --run-name sb3_dqn_v3
 ```
 
 ### SB3 DDPG (continuous actions)
 
 ```bash
+# Train
 python Pyrace_RL_SB3.py train --env-id Pyrace-v4 --algo ddpg --run-name sb3_ddpg_v4 --timesteps 200000 --device auto
+
+#Play
 python Pyrace_RL_SB3.py play  --env-id Pyrace-v4 --algo ddpg --run-name sb3_ddpg_v4
 ```
 
