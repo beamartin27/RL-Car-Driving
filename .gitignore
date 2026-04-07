@@ -1,6 +1,13 @@
-# Large memory files (too big for GitHub)
-models/*/memory_*.npy
-models_*/memory_*.npy
+# Generated training artifacts (too big for GitHub)
+models/**/memory_*.npy
+models/**/memory_*.npz
+
+# SB3 saved models (generated)
+models/**/sb3_*model*.zip
+
+# Local assignment PDF (do not commit)
+RLI_17_0A - ASSIGNMENT - Pit lane repairs.pdf
 __pycache__/
 *.pyc
+.venv
 

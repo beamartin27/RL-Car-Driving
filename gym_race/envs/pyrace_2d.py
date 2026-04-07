@@ -202,7 +202,7 @@ class PyRace2D:
         self.map = pygame.image.load('race_track_ie.png')
         self.cars = []
         self.version = version
-        self.min_speed = 0 if self.version == "v3" else 1
+        self.min_speed = 0 if self.version in ("v3", "v4") else 1
         if car:
             self.car = Car('car.png', self.map, [500, 650])
             self.cars.append(self.car)
@@ -211,10 +211,29 @@ class PyRace2D:
         self.mode = mode # 0: normal, 1:dark, 2: normal (force display)
 
     def action(self, action): # translates integer actions to car physics:
-        if action == 0: self.car.speed += 2
-        elif action == 1: self.car.angle += 5
-        elif action == 2: self.car.angle -= 5
-        elif action == 3 and self.version == "v3": self.car.speed -= 2
+        if self.version == "v4":
+            steer = float(action[0])
+            throttle = float(action[1])
+            if steer > 1.0:
+                steer = 1.0
+            elif steer < -1.0:
+                steer = -1.0
+            if throttle > 1.0:
+                throttle = 1.0
+            elif throttle < -1.0:
+                throttle = -1.0
+
+            self.car.angle += 5.0 * steer
+            self.car.speed += 2.0 * throttle
+        else:
+            if action == 0:
+                self.car.speed += 2
+            elif action == 1:
+                self.car.angle += 5
+            elif action == 2:
+                self.car.angle -= 5
+            elif action == 3 and self.version == "v3":
+                self.car.speed -= 2
 
         self.car.update(min_speed=self.min_speed)
         self.car.check_collision()
@@ -225,7 +244,7 @@ class PyRace2D:
             self.car.check_radar(d)
 
     def evaluate(self): # reward function
-        if self.version != "v3":
+        if self.version not in ("v3", "v4"):
             reward = 0
             """
             if self.car.check_flag:
@@ -244,6 +263,13 @@ class PyRace2D:
 
         reward = -0.1 # small per-step penalty to discourage stalling
         reward += 0.02 * self.car.speed # moving is better than standing still
+
+        # Lane-centering shaping: penalize imbalance between left and right radar distances.
+        # Indices 0 and 4 are left/right rader.
+        if len(self.car.radars) >= 5:
+            left_dist = float(self.car.radars[0][1])
+            right_dist = float(self.car.radars[4][1])
+            reward -= 0.01 * abs(left_dist - right_dist)
 
         if self.car.check_flag:
             reward += 50.0
@@ -274,7 +300,7 @@ class PyRace2D:
         ret = [0, 0, 0, 0, 0]
         i = 0
         for r in radars:
-            if self.version == "v3":
+            if self.version in ("v3", "v4"):
                 ret[i] = float(r[1]) # raw radar distance for continuous observations
             else:
                 ret[i] = int(r[1] / 20) # raw distance (0-200) → integer (0-10), discretization bottleneck

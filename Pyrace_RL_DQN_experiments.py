@@ -38,6 +38,14 @@ MODELS_DIR = 'models'
 REPORT_EPISODES  = 500
 DISPLAY_EPISODES = 100
 
+# Exploration schedule: for continuous observation spaces (e.g. Pyrace-v3),
+# the old bucket-based DECAY_FACTOR becomes enormous and keeps epsilon near 0.8
+# for far too long. We switch to an episode-based exponential decay in that case.
+USE_EXP_DECAY = False
+EPS_START = 0.8
+EPS_END = 0.05
+EPS_DECAY = 0.995
+
 # =============================================================================
 # VARIANT CONFIGURATIONS
 # =============================================================================
@@ -221,13 +229,15 @@ class DQNAgent:
 # 4. EXPLORATION RATE — same as v1 (log-based + threshold)
 # =============================================================================
 def get_explore_rate(t):
+    if USE_EXP_DECAY:
+        return max(EPS_END, EPS_START * (EPS_DECAY ** t))
     return max(MIN_EXPLORE_RATE, min(0.8, 1.0 - math.log10((t + 1) / DECAY_FACTOR)))
 
 
 # =============================================================================
 # 5. SIMULATE
 # =============================================================================
-def simulate(agent, variant_name, learning=True, episode_start=0):
+def simulate(agent, variant_name, run_dir, env_obs_scale, learning=True, episode_start=0):
     explore_rate = get_explore_rate(episode_start)
     total_reward = 0
     total_rewards = []
@@ -235,9 +245,7 @@ def simulate(agent, variant_name, learning=True, episode_start=0):
     threshold = 1000
     normalize = agent.config['normalize']
 
-    version_name = f'DQN_{variant_name}'
-    if not os.path.exists(f'{MODELS_DIR}/{version_name}'):
-        os.makedirs(f'{MODELS_DIR}/{version_name}')
+    os.makedirs(run_dir, exist_ok=True)
 
     env.set_view(True)
 
@@ -253,33 +261,33 @@ def simulate(agent, variant_name, learning=True, episode_start=0):
                 plt.xlabel('Episode')
                 plt.title(f'{variant_name} | Ep {episode} | Max: {max_reward:.0f}')
                 plt.tight_layout()
-                plt.savefig(f'{MODELS_DIR}/{version_name}/rewards_{episode}.png', dpi=100)
+                plt.savefig(os.path.join(run_dir, f'rewards_{episode}.png'), dpi=100)
                 plt.close()
 
-                model_file = f'{MODELS_DIR}/{version_name}/model_{episode}.pt'
+                model_file = os.path.join(run_dir, f'model_{episode}.pt')
                 agent.save(model_file)
 
-                file = f'{MODELS_DIR}/{version_name}/memory_{episode}'
+                file = os.path.join(run_dir, f'memory_{episode}')
                 env.save_memory(file)
 
         obv, _ = env.reset()
-        # Normalize if config says so
         if normalize:
-            state_0 = np.array(obv, dtype=np.float32) / 10.0
+            state_0 = np.array(obv, dtype=np.float32) / env_obs_scale
         else:
             state_0 = np.array(obv, dtype=np.float32)
+
         total_reward = 0
         if not learning:
             env.pyrace.mode = 2
 
-        if episode >= threshold:
+        if (not USE_EXP_DECAY) and episode >= threshold:
             explore_rate = 0.01
 
         for t in range(MAX_T):
             action = agent.select_action(state_0, explore_rate if learning else 0)
             obv, reward, done, _, info = env.step(action)
             if normalize:
-                state = np.array(obv, dtype=np.float32) / 10.0
+                state = np.array(obv, dtype=np.float32) / env_obs_scale
             else:
                 state = np.array(obv, dtype=np.float32)
 
@@ -314,7 +322,6 @@ def simulate(agent, variant_name, learning=True, episode_start=0):
 
         explore_rate = get_explore_rate(episode)
 
-    # Final save
     if learning and total_rewards:
         plt.figure(figsize=(8, 4))
         plt.plot(total_rewards)
@@ -322,9 +329,9 @@ def simulate(agent, variant_name, learning=True, episode_start=0):
         plt.xlabel('Episode')
         plt.title(f'{variant_name} FINAL | {len(total_rewards)} eps | Max: {max_reward:.0f}')
         plt.tight_layout()
-        plt.savefig(f'{MODELS_DIR}/{version_name}/rewards_final.png', dpi=100)
+        plt.savefig(os.path.join(run_dir, 'rewards_final.png'), dpi=100)
         plt.close()
-        agent.save(f'{MODELS_DIR}/{version_name}/model_final.pt')
+        agent.save(os.path.join(run_dir, 'model_final.pt'))
 
     return total_rewards
 
@@ -337,6 +344,12 @@ if __name__ == "__main__":
     parser.add_argument('--variant', type=str, default='v1_baseline',
                         choices=list(VARIANTS.keys()),
                         help='Which variant to run')
+    parser.add_argument('--env-id', type=str, default='Pyrace-v1',
+                        help='Gym environment id to run, e.g. Pyrace-v1 or Pyrace-v3')
+    parser.add_argument('--run-name', type=str, default=None,
+                        help='Optional folder name for this run. Defaults to DQN_<variant>')
+    parser.add_argument('--models-dir', type=str, default='models',
+                        help='Root directory for saved models and plots')
     parser.add_argument('--episodes', type=int, default=3000,
                         help='Number of episodes to train')
     args = parser.parse_args()
@@ -344,17 +357,29 @@ if __name__ == "__main__":
     variant_name = args.variant
     config = VARIANTS[variant_name]
 
+    def _default_run_name(variant: str) -> str:
+        # Match the existing folder naming convention under models/<env-id>/
+        # e.g. models/Pyrace-v1/models_DQN_v3_normalize/
+        if variant == 'v1_baseline':
+            return 'models_DQN_v01'
+        return f'models_DQN_{variant}'
+
+    run_name = args.run_name or _default_run_name(variant_name)
+    run_dir = os.path.join(args.models_dir, args.env_id, run_name)
+
     print(f'\n{"="*60}')
     print(f'RUNNING VARIANT: {variant_name}')
     print(f'Description: {config["description"]}')
     print(f'Config: {config}')
     print(f'{"="*60}\n')
 
-    env = gym.make("Pyrace-v1").unwrapped
-    if not os.path.exists(f'{MODELS_DIR}/DQN_{variant_name}'):
-        os.makedirs(f'{MODELS_DIR}/DQN_{variant_name}')
+    env = gym.make(args.env_id).unwrapped
+    os.makedirs(run_dir, exist_ok=True)
+    env_obs_scale = np.maximum(env.observation_space.high.astype(np.float32), 1.0)
 
-    STATE_SIZE  = env.observation_space.shape[0]
+    USE_EXP_DECAY = np.issubdtype(env.observation_space.dtype, np.floating)
+
+    STATE_SIZE = env.observation_space.shape[0]
     ACTION_SIZE = env.action_space.n
 
     MIN_EXPLORE_RATE = 0.001
@@ -366,12 +391,15 @@ if __name__ == "__main__":
 
     agent = DQNAgent(STATE_SIZE, ACTION_SIZE, config)
     print(f'Network: {agent.policy_net}')
-    print(f'Loss: {config["loss"]} | Gamma: {config["gamma"]} | Buffer: {config["buffer_size"]} | Normalize: {config["normalize"]}')
+    print(
+        f'Loss: {config["loss"]} | Gamma: {config["gamma"]} | Buffer: {config["buffer_size"]} | '
+        f'Normalize: {config["normalize"]}'
+    )
     print()
 
     # Uncomment this for training
-    rewards = simulate(agent, variant_name) 
+    rewards = simulate(agent, variant_name, run_dir, env_obs_scale) 
 
     # Uncomment this for running trained models
-    # agent.load(f'{MODELS_DIR}/DQN_{variant_name}/model_final.pt')
-    # simulate(agent, variant_name, learning=False, episode_start=3000)
+    # agent.load(os.path.join(run_dir, 'model_final.pt'))
+    # simulate(agent, variant_name, run_dir, learning=False, episode_start=3000)

@@ -23,7 +23,9 @@ register(
 """
 
 MODELS_DIR = 'models'
+ENV_ID = 'Pyrace-v1'
 VERSION_NAME = 'DQN_v01'
+RUN_DIR = os.path.join(MODELS_DIR, ENV_ID, f'models_{VERSION_NAME}')
 
 REPORT_EPISODES  = 500
 DISPLAY_EPISODES = 100
@@ -192,14 +194,14 @@ def simulate(agent, learning=True, episode_start=0):
                 plt.ylabel('rewards')
                 plt.show(block=False)
                 plt.pause(4.0)
-                plt.savefig(f'{MODELS_DIR}/{VERSION_NAME}/rewards_{episode}.png')
+                plt.savefig(os.path.join(RUN_DIR, f'rewards_{episode}.png'))
 
                 # Save memory (for analysis, same as Q-table version)
-                file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'
+                file = os.path.join(RUN_DIR, f'memory_{episode}')
                 env.save_memory(file)
 
                 # Save DQN model (replaces np.save of q_table)
-                model_file = f'{MODELS_DIR}/{VERSION_NAME}/model_{episode}.pt'
+                model_file = os.path.join(RUN_DIR, f'model_{episode}.pt')
                 agent.save(model_file)
 
                 plt.close()
@@ -253,7 +255,7 @@ def simulate(agent, learning=True, episode_start=0):
 # 6. LOAD AND PLAY — loads a saved model and plays/continues training
 # =============================================================================
 def load_and_play(agent, episode, learning=False):
-    model_file = f'{MODELS_DIR}/{VERSION_NAME}/model_{episode}.pt'
+    model_file = os.path.join(RUN_DIR, f'model_{episode}.pt')
     agent.load(model_file)
     simulate(agent, learning, episode)
 
@@ -263,10 +265,9 @@ def load_and_play(agent, episode, learning=False):
 # =============================================================================
 if __name__ == "__main__":
 
-    env = gym.make("Pyrace-v1").unwrapped
+    env = gym.make(ENV_ID).unwrapped
     print('env', type(env))
-    if not os.path.exists(f'{MODELS_DIR}/{VERSION_NAME}'):
-        os.makedirs(f'{MODELS_DIR}/{VERSION_NAME}')
+    os.makedirs(RUN_DIR, exist_ok=True)
 
     STATE_SIZE  = env.observation_space.shape[0]   # 5 (radars)
     ACTION_SIZE = env.action_space.n               # 3 (accelerate, left, right)

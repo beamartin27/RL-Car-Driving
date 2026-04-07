@@ -12,6 +12,20 @@ class RaceEnv(gym.Env):
             self.action_space = spaces.Discrete(4) # accelerate, left, right, brake
             self.observation_space = spaces.Box(
                 low=np.zeros(5, dtype=np.float32),
+                high=np.full(5, 200.0, dtype=np.float32),  # 5 raders : [0.0, 200.0]
+                dtype=np.float32,
+            )
+        elif self.version == "v4":
+            # action space: action = [steer, throttle]
+            # steer in [-1, 1] : +1 → turn left, -1 → turn right
+            # throttle in [-1, 1] : -1 → +1 brake → accelarate 
+            self.action_space = spaces.Box(
+                low=np.array([-1.0, -1.0], dtype=np.float32),
+                high=np.array([1.0, 1.0], dtype=np.float32),
+                dtype=np.float32,
+            )
+            self.observation_space = spaces.Box(
+                low=np.zeros(5, dtype=np.float32),
                 high=np.full(5, 200.0, dtype=np.float32),
                 dtype=np.float32,
             )

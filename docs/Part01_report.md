@@ -122,6 +122,6 @@ Even the best variant (v5) still crashes ~25% of the time, likely at specific tr
 | `Pyrace_RL_DQN.py` | Main DQN implementation (v1 baseline) |
 | `Pyrace_RL_DQN_v2.py` | Combined improvements variant (target net + normalization + Huber) |
 | `Pyrace_RL_DQN_experiments.py` | Ablation study runner with 6 configurable variants |
-| `models_DQN_v01/` | Saved models and reward plots for v1 |
-| `models_DQN_v02/` | Saved models and reward plots for v2 |
-| `models_DQN_v{3-7}_*/` | Saved models and reward plots for each ablation variant |
+| `models/Pyrace-v1/models_DQN_v01/` | Saved models and reward plots for v1 |
+| `models/Pyrace-v1/models_DQN_v02/` | Saved models and reward plots for v2 |
+| `models/Pyrace-v1/models_DQN_v{3-7}_*/` | Saved models and reward plots for each ablation variant |

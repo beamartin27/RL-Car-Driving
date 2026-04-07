@@ -21,6 +21,7 @@ Reference implementations studied:
 """
 
 import sys, os
+import argparse
 import math, random
 import numpy as np
 import matplotlib
@@ -36,7 +37,9 @@ import gymnasium as gym
 import gym_race
 
 MODELS_DIR = 'models'
+ENV_ID = 'Pyrace-v1'
 VERSION_NAME = 'DQN_v02'
+RUN_DIR = os.path.join(MODELS_DIR, ENV_ID, f'models_{VERSION_NAME}')
 
 REPORT_EPISODES  = 500
 DISPLAY_EPISODES = 100
@@ -152,11 +155,11 @@ class DQNAgent:
 
         states, actions, rewards, next_states, dones = self.memory.sample(self.batch_size)
 
-        states_t      = torch.FloatTensor(states).to(self.device)
-        actions_t     = torch.LongTensor(actions).to(self.device)
-        rewards_t     = torch.FloatTensor(rewards).to(self.device)
+        states_t = torch.FloatTensor(states).to(self.device)
+        actions_t = torch.LongTensor(actions).to(self.device)
+        rewards_t = torch.FloatTensor(rewards).to(self.device)
         next_states_t = torch.FloatTensor(next_states).to(self.device)
-        dones_t       = torch.FloatTensor(dones).to(self.device)
+        dones_t = torch.FloatTensor(dones).to(self.device)
 
         # Q_predicted from POLICY network
         q_predicted = self.policy_net(states_t).gather(1, actions_t.unsqueeze(1)).squeeze(1)
@@ -255,17 +258,17 @@ def simulate(agent, learning=True, episode_start=0):
                     plt.title('Training Loss')
 
                 plt.tight_layout()
-                plt.savefig(f'{MODELS_DIR}/{VERSION_NAME}/rewards_{episode}.png', dpi=100)
+                plt.savefig(os.path.join(RUN_DIR, f'rewards_{episode}.png'), dpi=100)
                 plt.show(block=False)
                 plt.pause(2.0)
                 plt.close()
 
                 # Save model
-                model_file = f'{MODELS_DIR}/{VERSION_NAME}/model_{episode}.pt'
+                model_file = os.path.join(RUN_DIR, f'model_{episode}.pt')
                 agent.save(model_file)
 
                 # Save memory for analysis
-                file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'
+                file = os.path.join(RUN_DIR, f'memory_{episode}')
                 env.save_memory(file)
 
             # Update target network periodically
@@ -321,16 +324,16 @@ def simulate(agent, learning=True, episode_start=0):
         plt.ylabel('Rewards')
         plt.xlabel('Episode')
         plt.title(f'Final — {len(total_rewards)} episodes | Max: {max_reward:.0f}')
-        plt.savefig(f'{MODELS_DIR}/{VERSION_NAME}/rewards_final.png', dpi=100)
+        plt.savefig(os.path.join(RUN_DIR, 'rewards_final.png'), dpi=100)
         plt.close()
-        agent.save(f'{MODELS_DIR}/{VERSION_NAME}/model_final.pt')
+        agent.save(os.path.join(RUN_DIR, 'model_final.pt'))
 
 
 # =============================================================================
 # 6. LOAD AND PLAY
 # =============================================================================
 def load_and_play(agent, episode, learning=False):
-    model_file = f'{MODELS_DIR}/{VERSION_NAME}/model_{episode}.pt'
+    model_file = os.path.join(RUN_DIR, f'model_{episode}.pt')
     agent.load(model_file)
     simulate(agent, learning, episode)
 
@@ -340,10 +343,25 @@ def load_and_play(agent, episode, learning=False):
 # =============================================================================
 if __name__ == "__main__":
 
-    env = gym.make("Pyrace-v1").unwrapped
+    parser = argparse.ArgumentParser(description='Improved DQN for PyRace')
+    parser.add_argument('--env-id', type=str, default='Pyrace-v1',
+                        help='Gym environment id to run, e.g. Pyrace-v1 or Pyrace-v3')
+    parser.add_argument('--version-name', type=str, default='DQN_v02',
+                        help='Name used for the output folder under models/<env-id>/')
+    parser.add_argument('--models-dir', type=str, default='models',
+                        help='Root directory for saved models and plots')
+    parser.add_argument('--episodes', type=int, default=3000,
+                        help='Number of episodes to train')
+    args = parser.parse_args()
+
+    ENV_ID = args.env_id
+    VERSION_NAME = args.version_name
+    MODELS_DIR = args.models_dir
+    RUN_DIR = os.path.join(MODELS_DIR, ENV_ID, f'models_{VERSION_NAME}')
+
+    env = gym.make(ENV_ID).unwrapped
     print('env', type(env))
-    if not os.path.exists(f'{MODELS_DIR}/{VERSION_NAME}'):
-        os.makedirs(f'{MODELS_DIR}/{VERSION_NAME}')
+    os.makedirs(RUN_DIR, exist_ok=True)
 
     STATE_SIZE  = env.observation_space.shape[0]   # 5
     ACTION_SIZE = env.action_space.n               # 3
@@ -352,7 +370,7 @@ if __name__ == "__main__":
     NUM_BUCKETS = tuple((env.observation_space.high + np.ones(env.observation_space.shape)).astype(int))
     DECAY_FACTOR = np.prod(NUM_BUCKETS, dtype=float) / 10.0
 
-    NUM_EPISODES = 3_000
+    NUM_EPISODES = args.episodes
     MAX_T = 2000
 
     # Create the DQN agent
@@ -364,5 +382,5 @@ if __name__ == "__main__":
     # -------------
     simulate(agent)  # LEARN from scratch
     # load_and_play(agent, 500, learning=True)   # continue training
-    # load_and_play(agent, 500, learning=False)  # just play
+    # load_and_play(agent, 2500, learning=False)  # just play
     # -------------

@@ -18,7 +18,9 @@ register(
 """
 
 MODELS_DIR = 'models'
+ENV_ID = 'Pyrace-v1'
 VERSION_NAME = 'QT_v02' # the name for our model
+RUN_DIR = os.path.join(MODELS_DIR, ENV_ID, f'models_{VERSION_NAME}')
 
 REPORT_EPISODES  = 500 # report (plot) every...
 DISPLAY_EPISODES = 100 # display live game every...
@@ -47,9 +49,9 @@ def simulate(learning=True,episode_start=0): # LEARN
                 # plt.show()
                 plt.show(block=False)
                 plt.pause(4.0)
-                file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'
+                file = os.path.join(RUN_DIR, f'memory_{episode}')
                 env.save_memory(file)
-                file = f'{MODELS_DIR}/{VERSION_NAME}/q_table_{episode}'
+                file = os.path.join(RUN_DIR, f'q_table_{episode}')
                 # print(q_table) # homogeneus types
                 data = q_table
                 if data.shape[0] == 11: # q_table
@@ -144,10 +146,10 @@ def load_and_play(episode, learning=False):
     """
     # DIRECT LOADING FROM SAVED DATA...
     print("Start loading q_table")
-    file = f'{MODELS_DIR}/{VERSION_NAME}/q_table_{episode}'+'.npy'
+    file = os.path.join(RUN_DIR, f'q_table_{episode}.npy')
     q_table = load_data(file)
     # print(q_table)
-    file = f'{MODELS_DIR}/{VERSION_NAME}/memory_{episode}'+'.npy'
+    file = os.path.join(RUN_DIR, f'memory_{episode}.npy')
     memory = load_data(file)
     i = np.count_nonzero(memory[:,4] == True) # episodes
 
@@ -202,9 +204,9 @@ def load_data(file):
 
 if __name__ == "__main__":
 
-    env = gym.make("Pyrace-v1").unwrapped # skip the TimeLimig and OrderEnforcing default wrappers
+    env = gym.make(ENV_ID).unwrapped # skip the TimeLimig and OrderEnforcing default wrappers
     print('env',type(env))
-    if not os.path.exists(f'{MODELS_DIR}/{VERSION_NAME}'): os.makedirs(f'{MODELS_DIR}/{VERSION_NAME}')
+    os.makedirs(RUN_DIR, exist_ok=True)
 
     NUM_BUCKETS  = tuple((env.observation_space.high + np.ones(env.observation_space.shape)).astype(int))
     NUM_ACTIONS  = env.action_space.n
