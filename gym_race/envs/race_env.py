@@ -32,18 +32,18 @@ class RaceEnv(gym.Env):
         else:
             self.action_space = spaces.Discrete(3) # 3 possible actions: 0, 1, 2
             self.observation_space = spaces.Box(np.array([0, 0, 0, 0, 0]), np.array([10, 10, 10, 10, 10]), dtype=int) # 5 sensors, each integer 0-10
-        self.is_view = True
+        self.render_mode = render_mode
+        self.is_view = self.render_mode == "human"
         self.pyrace = PyRace2D(self.is_view, version=self.version) # creates the actual game
         self.memory = []
-        self.render_mode = render_mode
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        mode = self.pyrace.mode
+        # Preserve the caller's view/headless preference across episode resets.
+        is_view = self.is_view
         del self.pyrace # destroy old game
-        self.is_view = True
         self.msgs=[]
-        self.pyrace = PyRace2D(self.is_view, mode = 0, version=self.version) # create fresh game (car back at start)
+        self.pyrace = PyRace2D(is_view, mode = 0, version=self.version) # create fresh game (car back at start)
         obs = self.pyrace.observe() # get initial radar readings
         return np.array(obs, dtype=self.observation_space.dtype),{}
 
@@ -52,7 +52,7 @@ class RaceEnv(gym.Env):
         reward = self.pyrace.evaluate() # compute reward
         done   = self.pyrace.is_done()  # check if episode is over
         obs    = self.pyrace.observe()  # get new radar readings
-        return np.array(obs, dtype=self.observation_space.dtype), reward, done, False, {'dist':self.pyrace.car.distance, 'check':self.pyrace.car.current_check, 'crash': not self.pyrace.car.is_alive}
+        return np.array(obs, dtype=self.observation_space.dtype), reward, done, False, {'dist':self.pyrace.car.distance, 'check':self.pyrace.car.current_check, 'crash': not self.pyrace.car.is_alive, 'goal': self.pyrace.car.goal}
 
     # def render(self, close=False , msgs=[], **kwargs): # gymnasium.render() does not accept other keyword arguments
     def render(self): # gymnasium.render() does not accept other keyword arguments

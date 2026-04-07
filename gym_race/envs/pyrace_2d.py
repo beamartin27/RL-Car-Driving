@@ -28,8 +28,11 @@ class Car:
         self.distance = 0                                                  # total distance traveled
         self.time_spent = 0
         self.current_check = 0                                             # which checkpoint we're heading toward
-        self.prev_distance = 0
-        self.cur_distance = 0
+        # Distance-to-next-checkpoint tracking (used for shaped progress reward in v3/v4).
+        # Initialize these to the *actual* distance to checkpoint 0 so the first step of each
+        # episode doesn't get a huge negative progress spike.
+        self.cur_distance = get_distance(check_point[self.current_check], self.center)
+        self.prev_distance = self.cur_distance
         self.check_flag = False
         """
         for d in range(-90, 120, 45): self.check_radar(d)
@@ -94,17 +97,26 @@ class Car:
     """
     def check_checkpoint(self): # 7 checkpoints defined as coordinates. The car must pass near each one in order. 
         p = check_point[self.current_check]
-        self.prev_distance = self.cur_distance
         dist = get_distance(p, self.center)
-        if dist < 70:                            # within 70 pixels = checkpoint reached
+
+
+        self.prev_distance = self.cur_distance
+
+        if dist < 70:  # within 70 pixels = checkpoint reached
             self.current_check += 1
-            self.prev_distance = 9999
             self.check_flag = True
             if self.current_check >= len(check_point):
                 self.current_check = 0
-                self.goal = True                 # full lap completed!
+                self.goal = True  # full lap completed!
             else:
                 self.goal = False
+
+            # Reset distance-to-target tracking to the next checkpoint.
+            next_p = check_point[self.current_check]
+            next_dist = get_distance(next_p, self.center)
+            self.cur_distance = next_dist
+            self.prev_distance = next_dist
+            return
 
         self.cur_distance = dist
     #------------------------------------------------------------------------------
@@ -196,7 +208,12 @@ class PyRace2D:
     def __init__(self, is_render = True, car = True, mode = 0, version="v1"):
         # print('PyRace2D - INIT ENVIRONMENT')
         pygame.init()
-        self.screen = pygame.display.set_mode((screen_width, screen_height))
+        # Headless mode: when is_render=False, avoid creating a visible display window.
+        # This makes SB3 training more stable and allows running without UI.
+        if is_render or mode == 2:
+            self.screen = pygame.display.set_mode((screen_width, screen_height))
+        else:
+            self.screen = pygame.Surface((screen_width, screen_height))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("Arial", 30)
         self.map = pygame.image.load('race_track_ie.png')
@@ -209,6 +226,9 @@ class PyRace2D:
         self.game_speed = 60*0 # as fast as possible...
         self.is_render = is_render
         self.mode = mode # 0: normal, 1:dark, 2: normal (force display)
+        # Tracks consecutive "stall" steps (no progress + very low speed).
+        # Helps prevent policies that just rotate in place to avoid crashing.
+        self.stall_steps = 0
 
     def action(self, action): # translates integer actions to car physics:
         if self.version == "v4":
@@ -269,29 +289,84 @@ class PyRace2D:
         if len(self.car.radars) >= 5:
             left_dist = float(self.car.radars[0][1])
             right_dist = float(self.car.radars[4][1])
-            reward -= 0.02 * abs((left_dist - right_dist)/200)
-
-            # Slight penalty for being too close to the wall for front-left and front-right lader
             front_left = float(self.car.radars[1][1])
+            front = float(self.car.radars[2][1])
             front_right = float(self.car.radars[3][1])
+
+            reward -= 0.02 * abs((left_dist - right_dist)/200)
+            reward -= 0.01 * abs((front_left - front_right)/200)
+
+            # # Shape for forward corridor vs side corridor:
+            # # Encourage (left + right) to be smaller than (front-left + front-right).
+            # # Intuition: prefer having more space in front-diagonals than on the sides.
+            # side_sum = left_dist + right_dist          # 0..400
+            # diag_sum = front_left + front_right        # 0..400
+            # balance = (diag_sum - side_sum) / 400.0    # approx [-1, 1]
+            # reward += 0.10 * max(-1.0, min(1.0, balance))
+
+            # Slight penalty for being too close to the wall for front-left/front/front-right radars.
+            
             close_thresh = 40.0  # pixels (out of max 200)
+            too_close_thresh = 10.0 
             if front_left < close_thresh:
-                reward -= 0.10 * (close_thresh - front_left) / close_thresh
+                reward -= 0.05 * (close_thresh - front_left) / close_thresh
+                if front_left < too_close_thresh: 
+                    reward -= 0.15 * (too_close_thresh - front_left) / too_close_thresh
+            if left_dist < too_close_thresh:
+                reward -= 0.15 * (too_close_thresh - left_dist) / too_close_thresh
+            if front < close_thresh:
+                reward -= 0.20 * (close_thresh - front) / close_thresh
+                if front < too_close_thresh: 
+                    reward -= 0.30 * (too_close_thresh - front) / too_close_thresh
             if front_right < close_thresh:
-                reward -= 0.10 * (close_thresh - front_right) / close_thresh
+                reward -= 0.05 * (close_thresh - front_right) / close_thresh
+                if front_right < too_close_thresh: 
+                    reward -= 0.15 * (too_close_thresh - front_right) / too_close_thresh
+            if right_dist < too_close_thresh:
+                reward -= 0.15 * (too_close_thresh - right_dist) / too_close_thresh
+
+            # Speed modulation:
+            # If distance between forward raders and walls are short, penalize going fast.
+            # If distance between forward raders and walls are long, mildly encourage speed.
+            min_ahead = min(front_left, front, front_right)
+            danger = max(0.0, close_thresh - min_ahead) / close_thresh  # 0..1
+            speed01 = max(0.0, min(1.0, float(self.car.speed) / 10.0))
+            reward -= 0.15 * danger * speed01
+
+            clear01 = max(0.0, min(1.0, min_ahead / 200.0))
+            reward += 0.02 * clear01 * speed01
 
         if self.car.check_flag:
-            reward += 50.0
+            reward += 15.0
             self.car.check_flag = False
+            self.stall_steps = 0
         else:
-            progress = self.car.prev_distance - self.car.cur_distance
-            reward += 0.1 * progress # reward moving toward the next checkpoint
+            # Progress shaping: reward decreasing distance-to-next-checkpoint.
+            # Clip the delta to avoid rare geometry jumps dominating the return.
+            progress = float(self.car.prev_distance - self.car.cur_distance)
+            if progress > 20.0:
+                progress = 20.0
+            elif progress < -20.0:
+                progress = -20.0
+            reward += 0.05 * progress
+
+            # Anti-spin / anti-stall shaping:
+            # If the car is barely moving AND not getting closer to the checkpoint,
+            # make that behavior clearly worse than crashing.
+            if abs(progress) < 0.5 and float(self.car.speed) < 0.5:
+                self.stall_steps += 1
+            else:
+                self.stall_steps = 0
+            reward -= min(0.25, 0.01 * float(self.stall_steps))
 
         if not self.car.is_alive: # crash
-            reward = -1000.0 + 0.1 * self.car.distance
+            # Keep crash strongly negative (to avoid "suiciding" to end episodes)
+            # but allow small partial credit for reaching later checkpoints.
+            # current_check is 0..6, so this yields [-300, -240].
+            reward = -300.0 + 10.0 * float(self.car.current_check)
 
         elif self.car.goal: # full lap
-            reward = 10000.0
+            reward = 1000.0
 
         return reward
 
@@ -330,8 +405,10 @@ class PyRace2D:
                     self.mode += 1
                     self.mode = self.mode % 3
                 elif event.key == pygame.K_q:
-                    done = True
-                    exit()
+                    # Don't hard-exit the whole Python process from inside the env.
+                    # Just close the pygame window.
+                    pygame.quit()
+                    return
 
         self.screen.blit(self.map, (0, 0))
 
